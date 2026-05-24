@@ -1,43 +1,65 @@
-#include <Arduino.h>
+#include <M5Unified.h>
+#include <WiFi.h>
 
-// Пины периферии LilyGO T-Embed
-#define POWER_PIN    46  // Главное питание всей платы (включает всё)
-#define LED_PIN      21  // Стандартный RGB/сигнальный пин (в некоторых ревизиях Брюса)
-#define LCD_BL_PIN   15  // Пин подсветки экрана
-#define LED_DATA_PIN 42  // Data-пин кольца джойстика APA102
-#define LED_CLK_PIN  45  // Clock-пин кольца джойстика APA102
+void scanWiFi() {
+    // Безопасно очищаем экран средствами M5Unified
+    M5.Display.clear(BLACK);
+    M5.Display.setCursor(10, 20);
+    M5.Display.setTextColor(YELLOW);
+    M5.Display.setTextSize(2);
+    
+    M5.Display.println("Scanning WiFi...");
+    Serial.println("Starting WiFi scan...");
+
+    // Сканируем частоты
+    int n = WiFi.scanNetworks();
+    
+    M5.Display.clear(BLACK);
+    M5.Display.setCursor(10, 10);
+
+    if (n == 0) {
+        M5.Display.setTextColor(RED);
+        M5.Display.println("No networks found.");
+    } else {
+        M5.Display.setTextColor(GREEN);
+        M5.Display.printf("Found %d networks:\n\n", n);
+        M5.Display.setTextColor(WHITE);
+        M5.Display.setTextSize(1); // Мелкий шрифт для списка
+
+        // Ограничиваем строки по высоте дисплея T-Embed
+        int maxLines = (M5.Display.height() - 40) / 12; 
+        for (int i = 0; i < n && i < maxLines; ++i) {
+            M5.Display.printf("%d) %s (%d dBm)\n", i + 1, WiFi.SSID(i).c_str(), WiFi.RSSI(i));
+            delay(10);
+        }
+    }
+    
+    M5.Display.println("\n");
+    M5.Display.setTextColor(BLUE);
+    M5.Display.setTextSize(2);
+    M5.Display.println("Re-scanning in 10s...");
+    
+    WiFi.scanDelete();
+}
 
 void setup() {
-    Serial.begin(115200);
+    // 1. Инициализация T-Embed встроенным алгоритмом Брюса
+    auto cfg = M5.config();
+    M5.begin(cfg);
 
-    // Переводим все возможные пины индикации в режим вывода
-    pinMode(POWER_PIN, OUTPUT);
-    pinMode(LED_PIN, OUTPUT);
-    pinMode(LCD_BL_PIN, OUTPUT);
-    pinMode(LED_DATA_PIN, OUTPUT);
-    pinMode(LED_CLK_PIN, OUTPUT);
+    // 2. Настройка экрана
+    M5.Display.setRotation(3); // Горизонтальный режим
+    M5.Display.setBrightness(200); // Яркость подсветки на максимум
+    M5.Display.clear(BLACK);
+
+    // 3. Старт Wi-Fi
+    WiFi.mode(WIFI_MODE_STA);
+    WiFi.disconnect();
+    delay(200);
 }
 
 void loop() {
-    Serial.println("TEST: Turning EVERYTHING ON");
-    
-    // Подаем питание на плату и зажигаем пины
-    digitalWrite(POWER_PIN, HIGH);
-    digitalWrite(LED_PIN, HIGH);
-    digitalWrite(LCD_BL_PIN, HIGH);
-    digitalWrite(LED_DATA_PIN, HIGH);
-    digitalWrite(LED_CLK_PIN, HIGH);
-    
-    delay(1000); // Ждем 1 секунду
-
-    Serial.println("TEST: Turning EVERYTHING OFF");
-    
-    // Гасим все пины и отключаем питание периферии
-    digitalWrite(POWER_PIN, LOW);
-    digitalWrite(LED_PIN, LOW);
-    digitalWrite(LCD_BL_PIN, LOW);
-    digitalWrite(LED_DATA_PIN, LOW);
-    digitalWrite(LED_CLK_PIN, LOW);
-    
-    delay(1000); // Ждем 1 секунду
+    // Каждые 10 секунд сканируем эфир
+    scanWiFi();
+    delay(10000);
 }
